@@ -109,6 +109,115 @@ function kern_exponential(𝑥ᵢ, 𝑥ⱼ;
 end
 
 ####################################################################################
+using SpecialFunctions
+
+function feq(a::AbstractFloat, b::AbstractFloat)
+    
+    T = typeof(a)
+    if T <: typeof(b)
+        T = typeof(b)
+        a = T(a)
+    elseif typeof(b) <: T
+        b = T(b)
+    end
+    
+    return (abs(a - b) < eps(T))
+    
+end
+
+function kern_matern(𝑥ᵢ, 𝑥ⱼ;
+                     ν  = NaN,
+                     ls = NaN,
+                     v  = NaN,
+                     θ::Dict{String,Float64} = Dict("nu" => 1.5,
+                                                    "lengthscale" => 0.1,
+                                                    "variance"    => 1.))
+    if !isnan(ν)
+        θ["nu"] = convert(Float64, ν)
+    end
+    if !isnan(ls)
+        θ["lengthscale"] = convert(Float64, ls)
+    end
+    if !isnan(v)
+        θ["variance"]    = convert(Float64, v)
+    end
+    
+    𝑝 = θ["nu"] - 0.5
+    
+    if round(𝑝) ≈ 𝑝 # Special case of half-int ν
+        𝑘 = kern_matern_halfint(𝑥ᵢ, 𝑥ⱼ, θ=θ)
+    else
+        
+        bnu = p -> besselk(θ["nu"], sqrt(2.*θ["nu"])*p./θ["lengthscale"])
+        
+        𝑘 = θ["variance"] .* 
+                (2.^(1.-θ["nu"]))./gamma(θ["nu"]) * 
+                    (sqrt(2.*θ["nu"])*norm(𝑥ᵢ - 𝑥ⱼ)./θ["lengthscale"]).^θ["nu"] * 
+                        map(bnu, norm(𝑥ᵢ- 𝑥ⱼ))
+        
+        𝑘 = map(bnu, norm(𝑥ᵢ - 𝑥ⱼ))
+        
+        if isinf.(𝑘)
+           𝑘 = θ["variance"]
+        end
+        
+    end
+    
+    return 𝑘
+
+end
+
+function kern_matern_halfint(𝑥ᵢ, 𝑥ⱼ;
+                             ν  = NaN,
+                             ls = NaN,
+                             v  = NaN,
+                             θ::Dict{String,Float64} = Dict("nu" => 1.5,
+                                                            "lengthscale" => 0.1,
+                                                            "variance"    => 1.))
+    if !isnan(ν)
+    θ["nu"] = convert(Float64, ν)
+    end
+    if !isnan(ls)
+        θ["lengthscale"] = convert(Float64, ls)
+    end
+    if !isnan(v)
+        θ["variance"]    = convert(Float64, v)
+    end
+    
+    𝑝 = θ["nu"] - 0.5
+    
+    if 𝑝 ≈ 0.      # ν = 1/2
+        𝑘 = θ["variance"] .* exp(-norm(𝑥ᵢ - 𝑥ⱼ)./θ["lengthscale"])
+    elseif 𝑝 ≈ 1.  # ν = 3/2
+        𝑘 = θ["variance"] * 
+                (1 + sqrt(3.)*norm(𝑥ᵢ - 𝑥ⱼ)./θ["lengthscale"]) .* 
+                    exp(-(sqrt(3.)*norm(𝑥ᵢ - 𝑥ⱼ))./θ["lengthscale"])
+    elseif 𝑝 ≈ 2.  # ν = 5/2
+        𝑘 = θ["variance"] * 
+            (1 + sqrt(5.)*norm(𝑥ᵢ - 𝑥ⱼ)./θ["lengthscale"] + 
+                5.*norm(𝑥ᵢ - 𝑥ⱼ).^2./(3.*θ["lengthscale"].^2)) .* 
+                    exp(-(sqrt(5)*norm(𝑥ᵢ - 𝑥ⱼ))./θ["lengthscale"])
+    elseif round(𝑝) ≈ 𝑝
+        Σₚ = factorial(𝑝) * (sqrt(8.*θ["nu"])*norm(𝑥ᵢ - 𝑥ⱼ)./θ["lengthscale"]).^𝑝
+
+        for 𝑖 ∈ 1:𝑝
+            Σₚ += factorial(𝑝+𝑖)/(factorial(𝑖)*factorial(𝑝-𝑖)) * 
+                    (sqrt(8.*θ["nu"])*norm(𝑥ᵢ - 𝑥ⱼ)./θ["lengthscale"]).^(𝑝-𝑖) 
+        end
+        
+        𝑘 = θ["variance"] .* 
+                exp(-sqrt(2.*θ["nu"])*norm(𝑥ᵢ - 𝑥ⱼ)./θ["lengthscale"]) * 
+                    (gamma(𝑝 + 1.)/gamma(2𝑝 + 1.)) * Σₚ
+        
+    else
+        𝑘 = kern_matern(𝑥ᵢ, 𝑥ⱼ, θ=θ)
+    end
+    
+    return 𝑘
+end
+
+
+####################################################################################
 
 function sample_kernel(𝐱; 𝑘 = kern_rbf, θ = nothing)
 
