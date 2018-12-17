@@ -109,7 +109,12 @@ function kern_exponential(𝑥ᵢ, 𝑥ⱼ;
 end
 
 ####################################################################################
-using SpecialFunctions
+try 
+    using SpecialFunctions
+catch ArgumentError
+    using Pkg; Pkg.add("SpecialFunctions")
+    using SpecialFunctions
+end
 
 function feq(a::AbstractFloat, b::AbstractFloat)
     
@@ -131,7 +136,7 @@ function kern_matern(𝑥ᵢ, 𝑥ⱼ;
                      v  = NaN,
                      θ::Dict{String,Float64} = Dict("nu" => 1.5,
                                                     "lengthscale" => 0.1,
-                                                    "variance"    => 1.))
+                                                    "variance"    => 1.0))
     if !isnan(ν)
         θ["nu"] = convert(Float64, ν)
     end
@@ -148,11 +153,11 @@ function kern_matern(𝑥ᵢ, 𝑥ⱼ;
         𝑘 = kern_matern_halfint(𝑥ᵢ, 𝑥ⱼ, θ=θ)
     else
         
-        bnu = p -> besselk(θ["nu"], sqrt(2.*θ["nu"])*p./θ["lengthscale"])
+        bnu = p -> besselk(θ["nu"], sqrt(2.0*θ["nu"])*p./θ["lengthscale"])
         
         𝑘 = θ["variance"] .* 
-                (2.^(1.-θ["nu"]))./gamma(θ["nu"]) * 
-                    (sqrt(2.*θ["nu"])*norm(𝑥ᵢ - 𝑥ⱼ)./θ["lengthscale"]).^θ["nu"] * 
+                (2.0^(1.0-θ["nu"]))./gamma(θ["nu"]) * 
+                    (sqrt(2.0*θ["nu"])*norm(𝑥ᵢ - 𝑥ⱼ)./θ["lengthscale"]).^θ["nu"] * 
                         map(bnu, norm(𝑥ᵢ- 𝑥ⱼ))
         
         𝑘 = map(bnu, norm(𝑥ᵢ - 𝑥ⱼ))
@@ -173,7 +178,7 @@ function kern_matern_halfint(𝑥ᵢ, 𝑥ⱼ;
                              v  = NaN,
                              θ::Dict{String,Float64} = Dict("nu" => 1.5,
                                                             "lengthscale" => 0.1,
-                                                            "variance"    => 1.))
+                                                            "variance"    => 1.0))
     if !isnan(ν)
     θ["nu"] = convert(Float64, ν)
     end
@@ -188,25 +193,25 @@ function kern_matern_halfint(𝑥ᵢ, 𝑥ⱼ;
     
     if 𝑝 ≈ 0.      # ν = 1/2
         𝑘 = θ["variance"] .* exp(-norm(𝑥ᵢ - 𝑥ⱼ)./θ["lengthscale"])
-    elseif 𝑝 ≈ 1.  # ν = 3/2
+    elseif 𝑝 ≈ 1.0  # ν = 3/2
         𝑘 = θ["variance"] * 
                 (1 + sqrt(3.)*norm(𝑥ᵢ - 𝑥ⱼ)./θ["lengthscale"]) .* 
                     exp(-(sqrt(3.)*norm(𝑥ᵢ - 𝑥ⱼ))./θ["lengthscale"])
-    elseif 𝑝 ≈ 2.  # ν = 5/2
+    elseif 𝑝 ≈ 2.0  # ν = 5/2
         𝑘 = θ["variance"] * 
-            (1 + sqrt(5.)*norm(𝑥ᵢ - 𝑥ⱼ)./θ["lengthscale"] + 
-                5.*norm(𝑥ᵢ - 𝑥ⱼ).^2./(3.*θ["lengthscale"].^2)) .* 
+            (1.0 + sqrt(5.)*norm(𝑥ᵢ - 𝑥ⱼ)./θ["lengthscale"] + 
+                5.0*norm(𝑥ᵢ - 𝑥ⱼ).^2 ./ (3.0*θ["lengthscale"].^2)) .* 
                     exp(-(sqrt(5)*norm(𝑥ᵢ - 𝑥ⱼ))./θ["lengthscale"])
     elseif round(𝑝) ≈ 𝑝
-        Σₚ = factorial(𝑝) * (sqrt(8.*θ["nu"])*norm(𝑥ᵢ - 𝑥ⱼ)./θ["lengthscale"]).^𝑝
+        Σₚ = factorial(𝑝) * (sqrt(8.0*θ["nu"])*norm(𝑥ᵢ - 𝑥ⱼ)./θ["lengthscale"]).^𝑝
 
         for 𝑖 ∈ 1:𝑝
             Σₚ += factorial(𝑝+𝑖)/(factorial(𝑖)*factorial(𝑝-𝑖)) * 
-                    (sqrt(8.*θ["nu"])*norm(𝑥ᵢ - 𝑥ⱼ)./θ["lengthscale"]).^(𝑝-𝑖) 
+                    (sqrt(8.0*θ["nu"])*norm(𝑥ᵢ - 𝑥ⱼ)./θ["lengthscale"]).^(𝑝-𝑖) 
         end
         
         𝑘 = θ["variance"] .* 
-                exp(-sqrt(2.*θ["nu"])*norm(𝑥ᵢ - 𝑥ⱼ)./θ["lengthscale"]) * 
+                exp(-sqrt(2.0*θ["nu"])*norm(𝑥ᵢ - 𝑥ⱼ)./θ["lengthscale"]) * 
                     (gamma(𝑝 + 1.)/gamma(2𝑝 + 1.)) * Σₚ
         
     else
@@ -231,7 +236,7 @@ function sample_kernel(𝐱; 𝑘 = kern_rbf, θ = nothing)
 
 
     U,S,V = svd(𝐊ₛₛ)
-    𝐿 = U * diagm(sqrt.(S))
+    𝐿 = U * Diagonal(sqrt.(S))
 
     return 𝐿*randn((𝑛ₓ,1))
 end
@@ -255,7 +260,7 @@ function sample_nd_kernel(𝐮; 𝑘 = kern_rbf, θ = nothing)
     end
 
     U,S,V = svd(𝐊ₛₛ)
-    𝐿 = U * diagm(sqrt.(S))
+    𝐿 = U * Diagonal(sqrt.(S))
 
     return 𝐿*randn((𝑛ₓ,1))
 end
@@ -276,7 +281,7 @@ function trained_gp(uₛ,yₛ;
         end
     end
 
-    return u -> _proto_gp_predict(u, uₛ, yₛ, 𝐊ₛₛ + σ²*eye(𝑛ₛ), 𝑘, θ)
+    return u -> _proto_gp_predict(u, uₛ, yₛ, 𝐊ₛₛ + σ²*Matrix(I, 𝑛ₛ, 𝑛ₛ), 𝑘, θ)
 end
 
 function _proto_gp_predict(u, uₛ, yₛ, 𝐊ₛₛ, 𝑘, θ)
@@ -312,7 +317,7 @@ function sample_posterior(μ, Σ; n=1)
 
     # Calculate lower triangular root
     U,S,V = svd(Σ)
-    𝐿 = U * diagm(sqrt.(S))
+    𝐿 = U * Diagonal(sqrt.(S))
 
     return [μ + 𝐿*randn(𝑛ₓ) for _ in 1:n]
 end
